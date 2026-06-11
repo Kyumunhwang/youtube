@@ -1,0 +1,3 @@
+@echo off
+echo Starting StreamYT Downloader...
+start "" "dist\StreamYTDownloader\StreamYTDownloader.exe"
