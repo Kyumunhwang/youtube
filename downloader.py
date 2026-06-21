@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List, Callable, Optional
 import yt_dlp
 import static_ffmpeg
+import static_ffmpeg.run
 
 # Add static FFmpeg binaries to environment PATH
 static_ffmpeg.add_paths()
@@ -19,6 +20,13 @@ class YouTubeDownloader:
             # Fallback to current working directory if Downloads directory not found
             self.download_dir = os.getcwd()
 
+        # Get FFmpeg binary directory dynamically
+        try:
+            ffmpeg_exe, _ = static_ffmpeg.run.get_or_fetch_platform_executables_else_raise()
+            self.ffmpeg_dir = os.path.dirname(ffmpeg_exe)
+        except Exception:
+            self.ffmpeg_dir = None
+
     def get_video_info(self, url: str) -> Dict[str, Any]:
         """
         Extracts video metadata and unique available resolutions.
@@ -33,7 +41,11 @@ class YouTubeDownloader:
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            'js_runtimes': {'deno': {}, 'node': {}},
+            'remote_components': {'ejs:github'},
         }
+        if self.ffmpeg_dir:
+            ydl_opts['ffmpeg_location'] = self.ffmpeg_dir
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if not info:
@@ -108,7 +120,11 @@ class YouTubeDownloader:
             'merge_output_format': 'mp4',
             'quiet': True,
             'no_warnings': True,
+            'js_runtimes': {'deno': {}, 'node': {}},
+            'remote_components': {'ejs:github'},
         }
+        if self.ffmpeg_dir:
+            ydl_opts['ffmpeg_location'] = self.ffmpeg_dir
 
         if progress_callback:
             ydl_opts['progress_hooks'] = [self._create_progress_hook(progress_callback)]
@@ -146,12 +162,16 @@ class YouTubeDownloader:
             'outtmpl': outtmpl,
             'quiet': True,
             'no_warnings': True,
+            'js_runtimes': {'deno': {}, 'node': {}},
+            'remote_components': {'ejs:github'},
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
         }
+        if self.ffmpeg_dir:
+            ydl_opts['ffmpeg_location'] = self.ffmpeg_dir
 
         if progress_callback:
             ydl_opts['progress_hooks'] = [self._create_progress_hook(progress_callback)]

@@ -176,7 +176,7 @@ if st.session_state.video_info:
     col_thumb, col_details = st.columns([2, 3])
     with col_thumb:
         if info["thumbnail"]:
-            st.image(info["thumbnail"], use_container_width=True)
+            st.image(info["thumbnail"], width="stretch")
     with col_details:
         st.markdown(f"### {info['title']}")
         st.markdown(f"**Uploader:** {info['author']}")
