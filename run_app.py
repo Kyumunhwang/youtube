@@ -1,20 +1,23 @@
-import streamlit.web.cli as stcli
 import os
 import sys
+import streamlit.web.cli as stcli
 
 if __name__ == "__main__":
-    # Ensure working directory is set to the application directory (sys._MEIPASS)
+    # Ensure base directory is configured properly
     if getattr(sys, 'frozen', False):
-        os.chdir(sys._MEIPASS)
+        base_dir = sys._MEIPASS
     else:
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         
+    os.chdir(base_dir)
+
     sys.argv = [
         "streamlit",
         "run",
-        "app.py",
+        os.path.join(base_dir, "app.py"),
         "--global.developmentMode=false",
         "--server.port=8501",
+        "--server.headless=false",
         "--browser.gatherUsageStats=false"
     ]
     

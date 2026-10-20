@@ -1,19 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 import os
+import streamlit
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# Get site-packages folder path dynamically
-site_packages = next(p for p in sys.path if 'site-packages' in p)
+# Locate streamlit package directory cleanly
+streamlit_dir = os.path.dirname(streamlit.__file__)
 
 datas = [
-    # Streamlit static files and assets
-    (os.path.join(site_packages, 'streamlit', 'static'), 'streamlit/static'),
-    # Streamlit runtime
-    (os.path.join(site_packages, 'streamlit', 'runtime'), 'streamlit/runtime'),
-    # Our app.py and downloader.py scripts
+    # Streamlit static files and runtime assets
+    (os.path.join(streamlit_dir, 'static'), 'streamlit/static'),
+    (os.path.join(streamlit_dir, 'runtime'), 'streamlit/runtime'),
+    # Core project scripts
     ('app.py', '.'),
     ('downloader.py', '.'),
 ]

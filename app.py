@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import subprocess
 from downloader import YouTubeDownloader
 
 # Set Streamlit page configuration with a premium icon and title
@@ -90,47 +91,6 @@ st.markdown("""
     .stButton>button:active {
         transform: translateY(0px) !important;
     }
-
-    /* Video Metadata Layout */
-    .meta-container {
-        display: flex;
-        flex-direction: row;
-        gap: 20px;
-        align-items: center;
-    }
-    
-    @media (max-width: 600px) {
-        .meta-container {
-            flex-direction: column;
-            text-align: center;
-        }
-    }
-
-    .meta-thumbnail {
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-        max-width: 200px;
-        width: 100%;
-        object-fit: cover;
-    }
-
-    .meta-details {
-        flex: 1;
-    }
-
-    .meta-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin-bottom: 8px;
-        color: #ffffff;
-        line-height: 1.4;
-    }
-
-    .meta-info {
-        font-size: 0.95rem;
-        color: #a0aec0;
-        margin-bottom: 4px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -141,10 +101,12 @@ if "video_info" not in st.session_state:
     st.session_state.video_info = None
 if "last_url" not in st.session_state:
     st.session_state.last_url = ""
+if "last_downloaded_file" not in st.session_state:
+    st.session_state.last_downloaded_file = None
 
 # Application Header
 st.markdown('<div class="title-text">StreamYT Downloader</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle-text">Download videos directly to your system\'s Downloads folder</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="subtitle-text">Target Folder: <code>{st.session_state.downloader.download_dir}</code></div>', unsafe_allow_html=True)
 
 # Main Form Container (Input Section)
 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
@@ -153,14 +115,16 @@ url_input = st.text_input("Enter YouTube Video URL:", placeholder="https://www.y
 
 # Handle URL Change / Fetch Metadata
 if url_input:
-    if url_input != st.session_state.last_url:
+    clean_url = url_input.strip()
+    if clean_url != st.session_state.last_url:
         st.session_state.video_info = None
-        st.session_state.last_url = url_input
+        st.session_state.last_url = clean_url
+        st.session_state.last_downloaded_file = None
 
     if st.session_state.video_info is None:
         with st.spinner("Fetching video information..."):
             try:
-                st.session_state.video_info = st.session_state.downloader.get_video_info(url_input)
+                st.session_state.video_info = st.session_state.downloader.get_video_info(clean_url)
             except Exception as e:
                 st.error(f"Error fetching metadata: {str(e)}")
 
@@ -175,14 +139,15 @@ if st.session_state.video_info:
     
     col_thumb, col_details = st.columns([2, 3])
     with col_thumb:
-        if info["thumbnail"]:
-            st.image(info["thumbnail"], width="stretch")
+        if info.get("thumbnail"):
+            # Use container width to support modern Streamlit versions cleanly
+            st.image(info["thumbnail"], use_container_width=True)
     with col_details:
-        st.markdown(f"### {info['title']}")
-        st.markdown(f"**Uploader:** {info['author']}")
+        st.markdown(f"### {info.get('title', 'YouTube Video')}")
+        st.markdown(f"**Uploader:** {info.get('author', 'Unknown')}")
         
         # Format duration into HH:MM:SS or MM:SS
-        duration_sec = info['duration']
+        duration_sec = info.get('duration', 0)
         hours = duration_sec // 3600
         minutes = (duration_sec % 3600) // 60
         seconds = duration_sec % 60
@@ -199,23 +164,21 @@ if st.session_state.video_info:
 
     if download_type == "Video & Audio":
         # Format resolutions for selectbox (e.g. 1080p, 720p)
-        available_heights = info["heights"]
+        available_heights = info.get("heights", [])
         if not available_heights:
             st.warning("No discrete video resolutions extracted. Will download best available format.")
             selected_height = None
         else:
-            # Map heights to user-friendly label
             resolution_options = {h: f"{h}p" for h in available_heights}
-            # Special labels for standard resolutions
             for h in available_heights:
-                if h == 2160:
-                    resolution_options[h] = "2160p (4K UHD)"
-                elif h == 1440:
-                    resolution_options[h] = "1440p (2K)"
-                elif h == 1080:
-                    resolution_options[h] = "1080p (Full HD)"
-                elif h == 720:
-                    resolution_options[h] = "720p (HD)"
+                if h >= 2160:
+                    resolution_options[h] = f"{h}p (4K UHD)"
+                elif h >= 1440:
+                    resolution_options[h] = f"{h}p (2K QHD)"
+                elif h >= 1080:
+                    resolution_options[h] = f"{h}p (Full HD)"
+                elif h >= 720:
+                    resolution_options[h] = f"{h}p (HD)"
 
             selected_height = st.selectbox(
                 "Select Resolution:",
@@ -238,7 +201,6 @@ if st.session_state.video_info:
 
     # Download Trigger Button
     if st.button("Start Download"):
-        # Reset progress displays
         update_progress(0.0, "Initializing download process...")
         
         try:
@@ -246,25 +208,31 @@ if st.session_state.video_info:
                 height_val = selected_height if selected_height else 1080
                 with st.spinner("Downloading video..."):
                     filepath = st.session_state.downloader.download_video(
-                        url=url_input,
+                        url=st.session_state.last_url,
                         height=height_val,
                         progress_callback=update_progress
                     )
             else:
                 with st.spinner("Downloading audio and converting to MP3..."):
                     filepath = st.session_state.downloader.download_audio(
-                        url=url_input,
+                        url=st.session_state.last_url,
                         progress_callback=update_progress
                     )
 
-            # Mark progress as complete
             update_progress(1.0, "Process completed successfully!")
-            
-            # Display Success feedback with file path
-            st.success("🎉 Download completed successfully!")
-            st.info(f"**Saved to:** `{filepath}`")
+            st.session_state.last_downloaded_file = filepath
             
         except Exception as e:
             st.error(f"An error occurred during download: {str(e)}")
+
+    if st.session_state.last_downloaded_file and os.path.exists(st.session_state.last_downloaded_file):
+        downloaded_path = st.session_state.last_downloaded_file
+        st.success("🎉 Download completed successfully!")
+        st.info(f"**Saved to:** `{downloaded_path}`")
+        if st.button("📂 Open in File Explorer"):
+            try:
+                subprocess.run(["explorer", f"/select,{os.path.normpath(downloaded_path)}"])
+            except Exception as exp_err:
+                st.warning(f"Could not open explorer automatically: {str(exp_err)}")
 
     st.markdown('</div>', unsafe_allow_html=True)
